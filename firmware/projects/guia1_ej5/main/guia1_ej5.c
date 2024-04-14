@@ -13,35 +13,35 @@
 
 // Definir la enumeración para la dirección de GPIO
 typedef enum {
-    GPIO_OUTPUT,
-    GPIO_INPUT
+    GPIO_INPUT,
+    GPIO_OUTPUT
 } gpio_dir_t;
 
 // Definir la estructura para el pin GPIO
 typedef struct {
     int pin;         /*!< GPIO pin number */
-    gpio_dir_t dir;  /*!< GPIO direction '0' IN; '1' OUT*/
+    gpio_dir_t dir;  /*!< GPIO direction */
 } gpio_pin_t;
 
 // Función ficticia para configurar un pin GPIO
-void gpioConfig(gpio_pin_t *pin, gpio_dir_t dir) {
-    printf("Configurando GPIO %d como %s\n", pin->pin, (dir == GPIO_OUTPUT) ? "salida" : "entrada");
+void gpioConfig(const gpio_pin_t *pin) {
+    printf("Configurando GPIO %d como %s\n", pin->pin, (pin->dir == GPIO_OUTPUT) ? "salida" : "entrada");
 }
 
 // Función ficticia para escribir en un pin GPIO
-void gpioWrite(gpio_pin_t pin, int value) {
-    printf("Escribiendo en GPIO %d: %d\n", pin.pin, value);
+void gpioWrite(const gpio_pin_t *pin, int value) {
+    printf("Escribiendo en GPIO %d: %d\n", pin->pin, value);
 }
 
 typedef struct {
-    gpio_pin_t pin;         /*!< GPIO pin number */
-    gpio_dir_t dir;         /*!< GPIO direction '0' IN; '1' OUT*/
+    gpio_pin_t pin;         /*!< GPIO pin */
+    gpio_dir_t dir;         /*!< GPIO direction */
 } gpioConf_t;
 
 void actualizarGPIOSegunBCD(uint8_t bcd, gpioConf_t *vectorGPIOS) {
     // Configurar los GPIOs
     for (int i = 0; i < 4; i++) {
-        gpioConfig(&vectorGPIOS[i].pin, GPIO_OUTPUT);
+        gpioConfig(&vectorGPIOS[i].pin);
     }
 
     // Actualizar los GPIOs según el BCD ingresado
@@ -50,11 +50,11 @@ void actualizarGPIOSegunBCD(uint8_t bcd, gpioConf_t *vectorGPIOS) {
         uint8_t estadoBit = (bcd >> i) & 0x01;
 
         // Cambiar el estado del GPIO según el estado del bit
-        gpioWrite(vectorGPIOS[i].pin, estadoBit);
+        gpioWrite(&vectorGPIOS[i].pin, estadoBit);
     }
 }
 
-void app_main(void){
+int main(void){
     // Definir el vector de GPIOs
     gpioConf_t vectorGPIOS[4] = {
         {{20, GPIO_OUTPUT}, GPIO_OUTPUT},
@@ -68,4 +68,6 @@ void app_main(void){
 
     // Actualizar los GPIOs según el BCD ingresado
     actualizarGPIOSegunBCD(bcd, vectorGPIOS);
+
+    return 0;
 }
