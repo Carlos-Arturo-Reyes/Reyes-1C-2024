@@ -10,6 +10,7 @@
 #include "lcditse0803.h"
 #include "gpio_mcu.h"
 #include "timer_mcu.h"
+#include "driver/gpio.h"
 
 #define CONFIG_BLINK_PERIOD_LED_1 1000
 #define CONFIG_BLINK_PERIOD_LED_2 1500
@@ -65,7 +66,7 @@ static void Led3Task(void *pvParameter) {
 
 static void MeasurementTask(void *pvParameter) {
     uint32_t distance_cm = 0;
-    char lcd_buffer[16];
+    char lcd_buffer[32];
     bool lcd_initialized = LcdItsE0803Init();
     if (!lcd_initialized) {
         printf("Error: No se pudo inicializar el LCD\n");
@@ -78,7 +79,7 @@ static void MeasurementTask(void *pvParameter) {
         } else if (xSemaphoreTake(measure_button_semaphore, portMAX_DELAY) == pdTRUE) {
             hold_flag = false;
             distance_cm = HcSr04ReadDistanceInCentimeters();
-            sprintf(lcd_buffer, "Distancia: %lu cm", distance_cm);
+            snprintf(lcd_buffer, sizeof(lcd_buffer), "Distancia: %lu cm", distance_cm);
             LcdItsE0803Write(0); // Clear the display
             LcdItsE0803Write(strtoul(lcd_buffer, NULL, 10)); // Display the new string
             if (distance_cm < 10) {
@@ -122,8 +123,8 @@ void app_main(void) {
     LedsInit();
     GPIOInit(HOLD_BUTTON, GPIO_INPUT);
     GPIOInit(MEASURE_BUTTON, GPIO_INPUT);
-    gpio_set_intr_type(HOLD_BUTTON, GPIO_INTR_NEGATE);
-    gpio_set_intr_type(MEASURE_BUTTON, GPIO_INTR_NEGATE);
+    gpio_set_intr_type(HOLD_BUTTON, GPIO_INTR_POSEDGE);
+    gpio_set_intr_type(MEASURE_BUTTON, GPIO_INTR_POSEDGE);
     gpio_install_isr_service(ESP_INTR_FLAG_IRAM);
     gpio_isr_handler_add(HOLD_BUTTON, HoldButtonInterrupt, NULL);
     gpio_isr_handler_add(MEASURE_BUTTON, MeasureButtonInterrupt, NULL);
