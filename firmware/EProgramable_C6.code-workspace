@@ -38,6 +38,18 @@
         },
         {
             "path": "projects/guia2_ej3"
+        },
+        {
+            "path": "projects/guia2_ej4"
+        },
+        {
+            "path": "projects/proyecto_final"
+        },
+        {
+            "path": "projects/motorreductor"
+        },
+        {
+            "path": "projects/humedad"
         }
     ],
     "settings": {
