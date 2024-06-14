@@ -50,6 +50,9 @@
         },
         {
             "path": "projects/humedad"
+        },
+        {
+            "path": "projects/examen"
         }
     ],
     "settings": {

@@ -8,6 +8,9 @@
  * @author Carlos Arturo Reyes 
  * Este código controla el suministro de agua y el pH de una planta utilizando
  * una ESP32, varios sensores y bombas peristálticas.
+ * 
+ * 
+ * 
  */
 
 /*==================[inclusions]=============================================*/
@@ -16,9 +19,9 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "driver/gpio.h"
-#include "esp_adc/adc_oneshot.h"
-#include "esp_adc/adc_cali.h"
-#include "esp_adc/adc_cali_scheme.h" 
+#include "esp_adc/adc_oneshot.h" // configura y usa el adc en modo de un disparo 
+#include "esp_adc/adc_cali.h" // proporcion acalibracion a mi adc 
+#include "esp_adc/adc_cali_scheme.h" //defines los esquemas de calibracion del adc
 //Quiero hacer una aclaracion de estas librerias son unas que yo ya habia usado en un proyecto similar 
 // anterior en mi otra universidad 
 //use las librerias para las conversiones de adc 
@@ -62,6 +65,8 @@ static void control_riego_y_ph(void *arg);
 /**
  * @brief Función principal del programa
  */
+
+
 void app_main(void) {
     // Inicializar el ADC para el sensor de pH
     init_adc();
@@ -72,9 +77,11 @@ void app_main(void) {
     gpio_set_direction(BOMBA_ACIDA_GPIO, GPIO_MODE_OUTPUT);
     gpio_set_direction(BOMBA_BASICA_GPIO, GPIO_MODE_OUTPUT);
 
-    // Crear la tarea de control de riego y pH
+    // Crear la tarea de control de riego y pH, esta es la principal tarea 
     xTaskCreate(control_riego_y_ph, "control_riego_y_ph", 2048, NULL, 5, NULL);
 }
+
+
 
 /*==================[internal functions definition]=========================*/
 static void init_adc() {
