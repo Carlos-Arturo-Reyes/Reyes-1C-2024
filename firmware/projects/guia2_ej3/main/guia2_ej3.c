@@ -1,3 +1,20 @@
+/**
+ * @file main.c
+ * @brief Main application file for ESP32 UART, LED, and HC-SR04 interaction.
+ *
+ * This file contains the main application code for controlling LEDs, measuring 
+ * distances with HC-SR04, and communicating via UART.
+ * 
+ * |   Date	    | Description                                    |
+ * |:----------:|:-----------------------------------------------|
+ * | 13/16/2024 | Document creation		                         |
+ * 
+ *  @author Reyes Carlos (carlosarturoreyes69@gmail.com)
+ * 
+ * 
+ */
+
+/*==================[inclusions]=============================================*/
 #include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -12,29 +29,37 @@
 #include "gpio_mcu.h"
 #include "timer_mcu.h"
 #include "driver/gpio.h"
-#include "driver/uart.h"
+#include "uart_mcu.h"
 
-#define CONFIG_BLINK_PERIOD_LED_1 1000
-#define CONFIG_BLINK_PERIOD_LED_2 1500
-#define CONFIG_BLINK_PERIOD_LED_3 500
+/*==================[macros and definitions]=================================*/
+#define CONFIG_BLINK_PERIOD_LED_1 1000 /**< Blink period for LED 1 in ms */
+#define CONFIG_BLINK_PERIOD_LED_2 1500 /**< Blink period for LED 2 in ms */
+#define CONFIG_BLINK_PERIOD_LED_3 500  /**< Blink period for LED 3 in ms */
 
-#define TRIGGER_GPIO GPIO_14
-#define ECHO_GPIO GPIO_12
-#define HOLD_BUTTON GPIO_4
-#define MEASURE_BUTTON GPIO_15
-#define UART_PORT UART_NUM_0
-#define UART_BAUDRATE 115200
+#define TRIGGER_GPIO GPIO_14 /**< GPIO for HC-SR04 trigger */
+#define ECHO_GPIO GPIO_12    /**< GPIO for HC-SR04 echo */
+#define HOLD_BUTTON GPIO_4   /**< GPIO for hold button */
+#define MEASURE_BUTTON GPIO_15 /**< GPIO for measure button */
+#define UART_PORT UART_PC    /**< UART port */
+#define UART_BAUDRATE 115200 /**< UART baud rate */
 
-static TaskHandle_t led1_task_handle = NULL;
-static TaskHandle_t led2_task_handle = NULL;
-static TaskHandle_t led3_task_handle = NULL;
-static TaskHandle_t measurement_task_handle = NULL;
+static TaskHandle_t led1_task_handle = NULL; /**< Handle for LED1 task */
+static TaskHandle_t led2_task_handle = NULL; /**< Handle for LED2 task */
+static TaskHandle_t led3_task_handle = NULL; /**< Handle for LED3 task */
+static TaskHandle_t measurement_task_handle = NULL; /**< Handle for measurement task */
+static TaskHandle_t uart_task_handle = NULL; /**< Handle for UART task */
 
-static bool hold_flag = false;
+static bool hold_flag = false; /**< Flag to hold measurement */
 
-static SemaphoreHandle_t hold_button_semaphore = NULL;
-static SemaphoreHandle_t measure_button_semaphore = NULL;
+static SemaphoreHandle_t hold_button_semaphore = NULL; /**< Semaphore for hold button */
+static SemaphoreHandle_t measure_button_semaphore = NULL; /**< Semaphore for measure button */
 
+/*==================[function definitions]===================================*/
+
+/**
+ * @brief Task to handle LED1 blinking.
+ * @param pvParameter Pointer to task parameters (not used)
+ */
 static void Led1Task(void *pvParameter) {
     while (true) {
         printf("LED_1 ON\n");
@@ -46,6 +71,10 @@ static void Led1Task(void *pvParameter) {
     }
 }
 
+/**
+ * @brief Task to handle LED2 blinking.
+ * @param pvParameter Pointer to task parameters (not used)
+ */
 static void Led2Task(void *pvParameter) {
     while (true) {
         printf("LED_2 ON\n");
@@ -57,6 +86,10 @@ static void Led2Task(void *pvParameter) {
     }
 }
 
+/**
+ * @brief Task to handle LED3 blinking.
+ * @param pvParameter Pointer to task parameters (not used)
+ */
 static void Led3Task(void *pvParameter) {
     while (true) {
         printf("LED_3 ON\n");
@@ -68,54 +101,59 @@ static void Led3Task(void *pvParameter) {
     }
 }
 
+/**
+ * @brief Task to handle distance measurement and display.
+ * @param pvParameter Pointer to task parameters (not used)
+ */
 static void MeasurementTask(void *pvParameter) {
     uint32_t distance_cm = 0;
     char lcd_buffer[32];
-    uint8_t uart_buffer[32];
+    char uart_buffer[32];
     bool lcd_initialized = LcdItsE0803Init();
     if (!lcd_initialized) {
         printf("Error: No se pudo inicializar el LCD\n");
         vTaskDelete(NULL);
     }
-    uart_config_t uart_config = {
-       .baud_rate = UART_BAUDRATE,
-       .data_bits = UART_DATA_8_BITS,
-       .parity = UART_PARITY_DISABLE,
-       .stop_bits = UART_STOP_BITS_1,
-       .flow_ctrl = UART_HW_FLOWCTRL_DISABLE
+
+    serial_config_t uart_config = {
+        .port = UART_PORT,
+        .baud_rate = UART_BAUDRATE,
+        .func_p = UART_NO_INT,
+        .param_p = NULL
     };
-    uart_param_config(UART_PORT, &uart_config);
-    uart_driver_install(UART_PORT, 256, 0, 0, NULL, 0);
+    UartInit(&uart_config);
+
     while (true) {
         if (xSemaphoreTake(hold_button_semaphore, portMAX_DELAY) == pdTRUE) {
-            hold_flag = true;
+            hold_flag = !hold_flag;
             xSemaphoreGive(hold_button_semaphore);
         } else if (xSemaphoreTake(measure_button_semaphore, portMAX_DELAY) == pdTRUE) {
-            hold_flag = false;
-            distance_cm = HcSr04ReadDistanceInCentimeters();
-            snprintf(lcd_buffer, sizeof(lcd_buffer), "Distancia: %lu cm", distance_cm);
-            LcdItsE0803Write(0); // Clear the display
-            LcdItsE0803Write(strtoul(lcd_buffer, NULL, 10)); // Display the new string
-            if (distance_cm < 10) {
-                LedOff(LED_1);
-                LedOff(LED_2);
-                LedOff(LED_3);
-            } else if (distance_cm >= 10 && distance_cm < 20) {
-                LedOn(LED_1);
-                LedOff(LED_2);
-                LedOff(LED_3);
-            } else if (distance_cm >= 20 && distance_cm < 30) {
-                LedOn(LED_1);
-                LedOn(LED_2);
-                LedOff(LED_3);
-            } else {
-                LedOn(LED_1);
-                LedOn(LED_2);
-                LedOn(LED_3);
+            if (!hold_flag) {
+                distance_cm = HcSr04ReadDistanceInCentimeters();
+                snprintf(lcd_buffer, sizeof(lcd_buffer), "Distancia: %lu cm", distance_cm);
+                LcdItsE0803Write(0); // Clear the display
+                LcdItsE0803Write(lcd_buffer); // Display the new string
+                if (distance_cm < 10) {
+                    LedOff(LED_1);
+                    LedOff(LED_2);
+                    LedOff(LED_3);
+                } else if (distance_cm >= 10 && distance_cm < 20) {
+                    LedOn(LED_1);
+                    LedOff(LED_2);
+                    LedOff(LED_3);
+                } else if (distance_cm >= 20 && distance_cm < 30) {
+                    LedOn(LED_1);
+                    LedOn(LED_2);
+                    LedOff(LED_3);
+                } else {
+                    LedOn(LED_1);
+                    LedOn(LED_2);
+                    LedOn(LED_3);
+                }
+
+                snprintf(uart_buffer, sizeof(uart_buffer), "%03lu cm\r\n", distance_cm);
+                UartSendString(UART_PORT, uart_buffer);
             }
-           
-            snprintf((char*)uart_buffer, sizeof(uart_buffer), "%03lu cm\r\n", distance_cm);
-             uart_write_bytes(UART_PORT, uart_buffer, sizeof(uart_buffer) - 1);
             xSemaphoreGive(measure_button_semaphore);
         } else {
             vTaskDelay(1000 / portTICK_PERIOD_MS);
@@ -123,18 +161,51 @@ static void MeasurementTask(void *pvParameter) {
     }
 }
 
+/**
+ * @brief Task to handle UART communication.
+ * @param pvParameter Pointer to task parameters (not used)
+ */
+static void UartTask(void *pvParameter) {
+    uint8_t data;
+    while (true) {
+        if (UartReadByte(UART_PORT, &data)) {
+            if (data == 'H') {
+                hold_flag = true;
+            } else if (data == 'R') {
+                hold_flag = false;
+            } else if (data == 'S') {
+                LedOff(LED_1);
+                LedOff(LED_2);
+                LedOff(LED_3);
+            }
+        }
+        vTaskDelay(100 / portTICK_PERIOD_MS);
+    }
+}
+
+/**
+ * @brief Interrupt handler for hold button.
+ * @param pvParameters Pointer to parameters (not used)
+ */
 void IRAM_ATTR HoldButtonInterrupt(void *pvParameters) {
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
     xSemaphoreGiveFromISR(hold_button_semaphore, &xHigherPriorityTaskWoken);
     portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
 
+/**
+ * @brief Interrupt handler for measure button.
+ * @param pvParameters Pointer to parameters (not used)
+ */
 void IRAM_ATTR MeasureButtonInterrupt(void *pvParameters) {
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
     xSemaphoreGiveFromISR(measure_button_semaphore, &xHigherPriorityTaskWoken);
     portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
 
+/**
+ * @brief Main application entry point.
+ */
 void app_main(void) {
     HcSr04Init(TRIGGER_GPIO, ECHO_GPIO);
     LedsInit();
@@ -151,4 +222,5 @@ void app_main(void) {
     xTaskCreate(Led2Task, "LED_2_TASK", 1024, NULL, 5, &led2_task_handle);
     xTaskCreate(Led3Task, "LED_3_TASK", 1024, NULL, 5, &led3_task_handle);
     xTaskCreate(MeasurementTask, "MEASUREMENT_TASK", 2048, NULL, 5, &measurement_task_handle);
+    xTaskCreate(UartTask, "UART_TASK", 1024, NULL, 5, &uart_task_handle);
 }

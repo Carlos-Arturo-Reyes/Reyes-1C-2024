@@ -1,3 +1,15 @@
+/**
+ * @file main.c
+ * @brief Application main file for handling LEDs and measuring distance with HC-SR04.
+ * 
+ * |   Date	    | Description                                    |
+ * |:----------:|:-----------------------------------------------|
+ * | 13/16/2024 | Document creation		                         |
+ * 
+ *  @author Reyes Carlos (carlosarturoreyes69@gmail.com)
+ */
+
+/*==================[inclusions]=============================================*/
 #include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -11,26 +23,65 @@
 #include "gpio_mcu.h"
 #include "timer_mcu.h"
 #include "driver/gpio.h"
+#include "switch.h"
 
-#define CONFIG_BLINK_PERIOD_LED_1 1000
-#define CONFIG_BLINK_PERIOD_LED_2 1500
-#define CONFIG_BLINK_PERIOD_LED_3 500
+/*==================[macros and definitions]=================================*/
+#define CONFIG_BLINK_PERIOD_LED_1 1000 /**< Blink period for LED 1 in milliseconds */
+#define CONFIG_BLINK_PERIOD_LED_2 1500 /**< Blink period for LED 2 in milliseconds */
+#define CONFIG_BLINK_PERIOD_LED_3 500  /**< Blink period for LED 3 in milliseconds */
 
-#define TRIGGER_GPIO GPIO_14
-#define ECHO_GPIO GPIO_12
-#define HOLD_BUTTON GPIO_4
-#define MEASURE_BUTTON GPIO_15
+#define TRIGGER_GPIO GPIO_14 /**< GPIO for HC-SR04 trigger */
+#define ECHO_GPIO GPIO_12    /**< GPIO for HC-SR04 echo */
 
-static TaskHandle_t led1_task_handle = NULL;
-static TaskHandle_t led2_task_handle = NULL;
-static TaskHandle_t led3_task_handle = NULL;
-static TaskHandle_t measurement_task_handle = NULL;
+/*==================[internal data declaration]==============================*/
+static TaskHandle_t led1_task_handle = NULL; /**< Task handle for LED 1 task */
+static TaskHandle_t led2_task_handle = NULL; /**< Task handle for LED 2 task */
+static TaskHandle_t led3_task_handle = NULL; /**< Task handle for LED 3 task */
+static TaskHandle_t measurement_task_handle = NULL; /**< Task handle for measurement task */
 
-static bool hold_flag = false;
+static bool hold_flag = false; /**< Flag to hold measurement */
 
-static SemaphoreHandle_t hold_button_semaphore = NULL;
-static SemaphoreHandle_t measure_button_semaphore = NULL;
+static SemaphoreHandle_t hold_button_semaphore = NULL; /**< Semaphore for hold button */
+static SemaphoreHandle_t measure_button_semaphore = NULL; /**< Semaphore for measure button */
 
+/*==================[internal functions declaration]=========================*/
+/**
+ * @brief Task to blink LED 1.
+ * @param pvParameter Task parameter.
+ */
+static void Led1Task(void *pvParameter);
+
+/**
+ * @brief Task to blink LED 2.
+ * @param pvParameter Task parameter.
+ */
+static void Led2Task(void *pvParameter);
+
+/**
+ * @brief Task to blink LED 3.
+ * @param pvParameter Task parameter.
+ */
+static void Led3Task(void *pvParameter);
+
+/**
+ * @brief Task to measure distance using HC-SR04 and update the LCD display.
+ * @param pvParameter Task parameter.
+ */
+static void MeasurementTask(void *pvParameter);
+
+/**
+ * @brief Interrupt service routine for hold button.
+ * @param pvParameters ISR parameter.
+ */
+void IRAM_ATTR HoldButtonInterrupt(void *pvParameters);
+
+/**
+ * @brief Interrupt service routine for measure button.
+ * @param pvParameters ISR parameter.
+ */
+void IRAM_ATTR MeasureButtonInterrupt(void *pvParameters);
+
+/*==================[internal functions definition]==========================*/
 static void Led1Task(void *pvParameter) {
     while (true) {
         printf("LED_1 ON\n");
@@ -75,7 +126,6 @@ static void MeasurementTask(void *pvParameter) {
     while (true) {
         if (xSemaphoreTake(hold_button_semaphore, portMAX_DELAY) == pdTRUE) {
             hold_flag = true;
-            xSemaphoreGive(hold_button_semaphore);
         } else if (xSemaphoreTake(measure_button_semaphore, portMAX_DELAY) == pdTRUE) {
             hold_flag = false;
             distance_cm = HcSr04ReadDistanceInCentimeters();
@@ -99,7 +149,6 @@ static void MeasurementTask(void *pvParameter) {
                 LedOn(LED_2);
                 LedOn(LED_3);
             }
-            xSemaphoreGive(measure_button_semaphore);
         } else {
             vTaskDelay(1000 / portTICK_PERIOD_MS);
         }
@@ -118,18 +167,15 @@ void IRAM_ATTR MeasureButtonInterrupt(void *pvParameters) {
     portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
 
+/*==================[external functions definition]==========================*/
 void app_main(void) {
     HcSr04Init(TRIGGER_GPIO, ECHO_GPIO);
     LedsInit();
-    GPIOInit(HOLD_BUTTON, GPIO_INPUT);
-    GPIOInit(MEASURE_BUTTON, GPIO_INPUT);
-    gpio_set_intr_type(HOLD_BUTTON, GPIO_INTR_POSEDGE);
-    gpio_set_intr_type(MEASURE_BUTTON, GPIO_INTR_POSEDGE);
-    gpio_install_isr_service(ESP_INTR_FLAG_IRAM);
-    gpio_isr_handler_add(HOLD_BUTTON, HoldButtonInterrupt, NULL);
-    gpio_isr_handler_add(MEASURE_BUTTON, MeasureButtonInterrupt, NULL);
+    SwitchesInit();
     hold_button_semaphore = xSemaphoreCreateBinary();
     measure_button_semaphore = xSemaphoreCreateBinary();
+    SwitchActivInt(SWITCH_1, HoldButtonInterrupt, NULL);
+    SwitchActivInt(SWITCH_2, MeasureButtonInterrupt, NULL);
     xTaskCreate(Led1Task, "LED_1_TASK", 1024, NULL, 5, &led1_task_handle);
     xTaskCreate(Led2Task, "LED_2_TASK", 1024, NULL, 5, &led2_task_handle);
     xTaskCreate(Led3Task, "LED_3_TASK", 1024, NULL, 5, &led3_task_handle);
