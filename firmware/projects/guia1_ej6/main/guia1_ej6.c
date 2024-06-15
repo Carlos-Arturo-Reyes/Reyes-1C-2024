@@ -1,29 +1,52 @@
+/**
+ * @file guia1_ej6.c
+ * 
+ * 
+ * @brief Escriba una función que reciba un dato de 32 bits,  la cantidad de dígitos de salida y 
+ * dos vectores de estructuras del tipo  gpioConf_t. Uno  de estos vectores es igual al definido 
+ * en el ejercicio 5 y el otro vector mapea los puertos con el dígito del LCD a donde mostrar un dato:
+ *Dígito 1 -> GPIO_19
+ *Dígito 2 -> GPIO_18
+ *Dígito 3 -> GPIO_9
+ * 
+ * |   Date	    | Description                                    |
+ * |:----------:|:-----------------------------------------------|
+ * | 10/16/2024 | Document creation		                         |
+ *
+ * @author Reyes Carlos (carlosarturoreyes69@gmail.com)
+ * 
+ */
 #include <stdio.h>
 #include <stdint.h>
 #include "gpio_mcu.h"
-// Definir la estructura para el pin GPIO
+
+/**
+ * @brief Estructura para el pin GPIO.
+ */
 typedef struct {
-    int pin;         /*!< GPIO pin number */
-    io_t dir;        /*!< GPIO direction */
+    int pin;         /*!< Número de pin GPIO */
+    io_t dir;        /*!< Dirección del GPIO */
 } gpioConf_t;
 
-// Función ficticia para configurar un pin GPIO
-void gpioConfig(const gpio_t pin, io_t dir) {
-    printf("Configurando GPIO %d como %s\n", pin, (dir == GPIO_OUTPUT) ? "salida" : "entrada");
-}
-
-// Función ficticia para escribir en un pin GPIO
-void gpioWrite(const gpio_t pin, int value) {
-    printf("Escribiendo en GPIO %d: %d\n", pin, value);
-}
-
-// Mapeo de pines para los dígitos del display LCD
+/**
+ * @brief Mapeo de pines para los dígitos del display LCD.
+ */
 const gpio_t digitPins[] = {GPIO_19, GPIO_18, GPIO_9};
 
+/**
+ * @brief Muestra un dato en el display LCD.
+ *
+ * Esta función configura los GPIOs necesarios y muestra un dato en el display LCD.
+ *
+ * @param dato El dato de 32 bits a mostrar.
+ * @param numDigitos Número de dígitos del display LCD.
+ * @param vectorGPIOS Vector de configuración de los GPIOs para el display LCD.
+ * @param vectorDigitos Vector de configuración de los GPIOs para los dígitos del display LCD.
+ */
 void mostrarDatoLCD(uint32_t dato, int numDigitos, gpioConf_t *vectorGPIOS, gpioConf_t *vectorDigitos) {
     // Configurar los GPIOs de los dígitos
     for (int i = 0; i < numDigitos; i++) {
-        gpioConfig(vectorDigitos[i].pin, GPIO_OUTPUT);
+        GPIOInit(vectorDigitos[i].pin, GPIO_OUTPUT);
     }
 
     // Mostrar el dato en el display LCD
@@ -32,15 +55,15 @@ void mostrarDatoLCD(uint32_t dato, int numDigitos, gpioConf_t *vectorGPIOS, gpio
         int digito = (dato >> (4 * i)) & 0xF;
 
         // Configurar los GPIOs del dígito
-        gpioConfig(vectorGPIOS[digito].pin, GPIO_OUTPUT);
+        GPIOInit(vectorGPIOS[digito].pin, GPIO_OUTPUT);
 
         // Activar el dígito en el display LCD
-        gpioWrite(vectorDigitos[i].pin, 1); // Activa el pin
+        GPIOOn(vectorDigitos[i].pin); // Activa el pin
 
         // Desactivar los otros dígitos en el display LCD
         for (int j = 0; j < numDigitos; j++) {
             if (j != i) {
-                gpioWrite(vectorDigitos[j].pin, 0); // Desactiva el pin
+                GPIOOff(vectorDigitos[j].pin); // Desactiva el pin
             }
         }
 
@@ -49,7 +72,12 @@ void mostrarDatoLCD(uint32_t dato, int numDigitos, gpioConf_t *vectorGPIOS, gpio
     }
 }
 
-int main(void){
+/**
+ * @brief Función principal de la aplicación.
+ *
+ * Esta función configura los GPIOs y muestra un dato en el display LCD.
+ */
+void app_main(void) {
     // Definir el vector de GPIOs para los dígitos del display LCD
     gpioConf_t vectorDigitos[] = {
         {GPIO_19, GPIO_OUTPUT},
@@ -63,7 +91,7 @@ int main(void){
         {GPIO_21, GPIO_OUTPUT},
         {GPIO_22, GPIO_OUTPUT},
         {GPIO_23, GPIO_OUTPUT},
-        // Aquí van los otros pines GPIO para los dígitos 4 a 15
+
     };
 
     // Ejemplo de dato de 32 bits
@@ -71,6 +99,4 @@ int main(void){
 
     // Mostrar el dato en el display LCD
     mostrarDatoLCD(dato, 3, vectorGPIOS, vectorDigitos);
-
-    return 0;
 }
