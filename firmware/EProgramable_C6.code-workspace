@@ -53,6 +53,9 @@
         },
         {
             "path": "projects/examen"
+        },
+        {
+            "path": "projects/ProyectoFinal"
         }
     ],
     "settings": {
